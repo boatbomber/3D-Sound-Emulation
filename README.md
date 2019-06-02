@@ -1,5 +1,7 @@
 # 3D-Sound-Emulation
 
+https://devforum.roblox.com/t/open-source-3d-sound-system/287330
+
 Usage is super simple, with just a single function.
 ```
 local SoundSystem3D = require(script.SoundSystem3D)
