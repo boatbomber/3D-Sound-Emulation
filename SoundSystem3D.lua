@@ -6,7 +6,7 @@ if not RunService:IsClient() then
 end
 
 -- Localize maths for optimization
-local acos, clamp	= math.acos, math.clamp
+local acos,cos,pi	= math.acos,math.cos,math.pi
 local v3,cf			= Vector3.new,CFrame.new
 local dot			= v3().Dot
 local newInst,getType	= Instance.new,typeof
@@ -114,17 +114,10 @@ end
 -- 3D-Effect management
 --------------------------
 
+
 RunService.RenderStepped:Connect(function()
 	for Emitter, _ in pairs(CurrentObjects) do
-		Emitter.Sound.EqualizerSoundEffect.HighGain = clamp(
-			acos(
-				dot(
-					cf(Camera.CFrame.Position,v3(Camera.CFrame.LookVector.X,Camera.CFrame.Position.Y,Camera.CFrame.LookVector.Z)).LookVector.Unit,
-					v3(Emitter.WorldPosition.Unit.X,Camera.CFrame.Position.Y,Emitter.WorldPosition.Unit.Z)
-				)
-			)*-8.2,
-			-25,0
-		)
+		Emitter.Sound.EqualizerSoundEffect.HighGain = -(-25 * cos(acos(dot(cf(Camera.CFrame.Position,v3(Camera.CFrame.LookVector.X,Camera.CFrame.Position.Y,Camera.CFrame.LookVector.Z)).LookVector.Unit,v3(Emitter.WorldPosition.Unit.X,Camera.CFrame.Position.Y,Emitter.WorldPosition.Unit.Z)))/pi * (pi / 2)) + 25)
 	end
 end)
 
