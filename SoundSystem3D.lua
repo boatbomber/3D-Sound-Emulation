@@ -1,5 +1,6 @@
 -- Services
 local RunService	= game:GetService("RunService")
+local SoundService	= game:GetService("SoundService")
 
 if not RunService:IsClient() then
 	error("Sound System 3D is to be run on the client. Use RemoteEvents to have the client create the sound.")
@@ -7,6 +8,7 @@ end
 
 -- Localize maths for optimization
 local acos,cos,pi	= math.acos,math.cos,math.pi
+local atan2,deg		= math.atan2,math.deg
 local v3,cf			= Vector3.new,CFrame.new
 local dot			= v3().Dot
 local newInst,getType	= Instance.new,typeof
@@ -30,6 +32,64 @@ local SoundContainer	= newInst("Part")
 -- Setup system
 local SoundSystem		= {}
 local CurrentObjects	= {}
+
+function SoundSystem:Attach(SoundObj)
+	
+	--------------------------
+	-- Sanity checks
+	--------------------------
+	
+	assert(typeof(SoundObj)=="Instance" and SoundObj.ClassName == "Sound", "Attempt to attach invalid Sound object.")
+	assert(SoundObj.Parent and (SoundObj.Parent:IsA("Attachment") or SoundObj.Parent:IsA("BasePart")) and SoundObj:IsDescendantOf(workspace), "Cannot have 3D effect on sound that is not in 3D environment")
+	
+	--------------------------
+	-- Object creation
+	--------------------------
+	
+	local Equalizer	= newInst("EqualizerSoundEffect") -- Create a separate one to ensure it doesn't mess with any existing effects
+		Equalizer.LowGain	= 0
+		Equalizer.MidGain	= 0
+		Equalizer.HighGain	= 0
+		
+	--------------------------
+	-- Effect controller
+	--------------------------
+	
+	local isAttachment = SoundObj.Parent:IsA("Attachment")
+	
+	local Emitter = {Sound = SoundObj, Position = isAttachment and SoundObj.Parent.WorldPosition or SoundObj.Parent.Position}
+	
+	local PositionTracker = SoundObj.Parent:GetPropertyChangedSignal("Position"):Connect(function()
+		Emitter.Position = isAttachment and SoundObj.Parent.WorldPosition or SoundObj.Parent.Position
+	end)
+	
+	CurrentObjects[Emitter] = true
+	
+	--------------------------
+	-- Finalization
+	--------------------------
+	
+	Equalizer.Parent = SoundObj
+		
+	SoundObj.AncestryChanged:Connect(function(_, Parent)
+		if not Parent then
+			--Destroyed
+			CurrentObjects[Emitter] = nil
+		elseif (SoundObj.Parent:IsA("Attachment") or SoundObj.Parent:IsA("BasePart")) and SoundObj:IsDescendantOf(workspace) then
+			--Moved
+			CurrentObjects[Emitter] = true
+			
+			PositionTracker:Disconnect()
+			PositionTracker = SoundObj.Parent:GetPropertyChangedSignal("Position"):Connect(function()
+				Emitter.Position = isAttachment and SoundObj.Parent.WorldPosition or SoundObj.Parent.Position
+			end)
+		else
+			--Moved to invalid object
+			CurrentObjects[Emitter] = nil
+		end
+	end)
+	
+end
 
 function SoundSystem:Create(ID, Target, Looped)
 	
@@ -114,10 +174,32 @@ end
 -- 3D-Effect management
 --------------------------
 
-
 RunService.RenderStepped:Connect(function()
+	
+	local _, Listener = SoundService:GetListener()
+
+	if Listener then
+		if Listener:IsA("BasePart") then
+			Listener = Listener.CFrame
+		end
+	else
+		Listener = Camera.CFrame
+	end
+	
 	for Emitter, _ in pairs(CurrentObjects) do
-		Emitter.Sound.EqualizerSoundEffect.HighGain = -(-25 * cos(acos(dot(cf(Camera.CFrame.Position,v3(Camera.CFrame.LookVector.X,Camera.CFrame.Position.Y,Camera.CFrame.LookVector.Z)).LookVector.Unit,v3(Emitter.WorldPosition.Unit.X,Camera.CFrame.Position.Y,Emitter.WorldPosition.Unit.Z)))/pi * (pi / 2)) + 25)
+		
+		local Facing = Listener.LookVector
+		local Vector = (Emitter.Position - Listener.Position).unit
+		
+		--Remove Y so up/down doesn't matter
+		Facing	= v3(Facing.X,0,Facing.Z)
+		Vector	= v3(Vector.X,0,Vector.Z)
+		
+		local Angle = acos(dot(Facing,Vector)/(Facing.magnitude*Vector.magnitude))
+
+		
+		Emitter.Sound.EqualizerSoundEffect.HighGain = -(25 * ((Angle/pi)^2))
+
 	end
 end)
 
